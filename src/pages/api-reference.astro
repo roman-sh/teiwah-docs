@@ -1,0 +1,60 @@
+---
+// Standalone Scalar API reference.
+// Rendered via the framework-agnostic CDN build so it is independent of the
+// Astro/Scalar peer-dependency version (Scalar's Astro component does not yet
+// declare Astro 6 support). Source of truth: /public/openapi.yaml.
+---
+
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>Teiwah API Reference</title>
+		<link rel="icon" href="/favicon.svg" />
+		<style>
+			body {
+				margin: 0;
+			}
+			.back-bar {
+				font:
+					14px/1.4 'DM Sans',
+					ui-sans-serif,
+					system-ui,
+					sans-serif;
+				padding: 10px 16px;
+				background: #09090b;
+				border-bottom: 1px solid #27272a;
+			}
+			.back-bar a {
+				color: #e4e4e7;
+				text-decoration: none;
+			}
+			.back-bar a:hover {
+				text-decoration: underline;
+			}
+		</style>
+	</head>
+	<body>
+		<div class="back-bar"><a href="/">&larr; Back to Teiwah Docs</a></div>
+		<div id="app"></div>
+
+		<script is:inline src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"
+		></script>
+		<script is:inline>
+			Scalar.createApiReference('#app', {
+				url: '/openapi.yaml',
+				theme: 'default',
+				darkMode: true,
+				hideDownloadButton: false,
+				// Disable Scalar's "Ask AI Agent" chat (otherwise shown on localhost).
+				agent: {
+					disabled: true,
+				},
+				authentication: {
+					preferredSecurityScheme: 'sessionApiKey',
+				},
+			});
+		</script>
+	</body>
+</html>

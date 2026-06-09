@@ -1,0 +1,51 @@
+/* Teiwah brand tweaks for Starlight.
+   Colors are left to Starlight's defaults (proper light/dark palette).
+   Fonts mirror teiwah.cloud: DM Sans for titles/headings (matching the
+   dashboard setup modal — tight tracking), Inter for body text. */
+
+@import '@fontsource-variable/dm-sans';
+@import '@fontsource-variable/inter';
+
+:root {
+	--sl-radius-small: 6px;
+	--sl-radius-medium: 8px;
+	--sl-radius-large: 12px;
+
+	/* Body text: Inter (matches dashboard --text-family). */
+	--sl-font:
+		'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
+		Roboto, sans-serif;
+	--sl-font-mono:
+		ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+		'Liberation Mono', 'Courier New', monospace;
+}
+
+/* Titles & headings: DM Sans, matching the dashboard setup modal
+   (font-display + tracking-tight). */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+.sl-markdown-content h1,
+.sl-markdown-content h2,
+.sl-markdown-content h3,
+.sl-markdown-content h4,
+.site-title {
+	font-family:
+		'DM Sans Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
+		Roboto, sans-serif;
+	font-weight: 600;
+	letter-spacing: -0.02em;
+}
+
+/* Splash hero title: DM Sans at a light weight with tight tracking,
+   matching the marketing site hero (normal weight, tracking-tight). */
+.hero h1 {
+	font-family:
+		'DM Sans Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI',
+		Roboto, sans-serif;
+	font-weight: 400;
+	letter-spacing: -0.03em;
+}

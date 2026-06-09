@@ -1,0 +1,54 @@
+---
+title: Teiwah API
+description: WhatsApp automation API — send messages, receive webhooks, and handle media through a simple session-based API.
+template: splash
+hero:
+  tagline: WhatsApp automation for builders. Receive messages via webhooks, send replies via a tiny REST API.
+  actions:
+    - text: Quickstart
+      link: /guides/quickstart/
+      icon: right-arrow
+    - text: API Reference
+      link: /api-reference/
+      icon: external
+      variant: minimal
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## How Teiwah works
+
+Teiwah connects a WhatsApp number to your automation. The model is intentionally small:
+
+```mermaid
+flowchart LR
+  WA[Incoming WhatsApp message] --> H[Teiwah webhook]
+  H --> A[AI / n8n / your backend]
+  A --> S[POST /messages]
+  S --> WA2[WhatsApp reply]
+```
+
+<CardGrid stagger>
+	<Card title="Send messages" icon="email">
+		One endpoint, `POST /messages`, for text, image, voice notes, audio,
+		video, documents, and location.
+	</Card>
+	<Card title="Receive webhooks" icon="random">
+		Inbound WhatsApp events are delivered to your webhook URL with an
+		explicit message type for easy routing.
+	</Card>
+	<Card title="Session API keys" icon="approve-check">
+		Each connected WhatsApp session has its own Bearer key, issued by the
+		Teiwah dashboard.
+	</Card>
+	<Card title="Media by URL" icon="open-book">
+		Media is referenced by URL. Download inbound media on demand; send
+		outbound media by URL or base64.
+	</Card>
+</CardGrid>
+
+## Get started
+
+1. Create a session and connect WhatsApp in the [Teiwah dashboard](https://teiwah.cloud/dashboard).
+2. Copy the session API key.
+3. Follow the [Quickstart](/guides/quickstart/) to send your first message.

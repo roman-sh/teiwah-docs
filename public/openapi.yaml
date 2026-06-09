@@ -1,0 +1,341 @@
+openapi: 3.1.0
+info:
+  title: Teiwah Message API
+  version: "1.0.0"
+  description: |
+    Send and receive WhatsApp messages through a simple, session-based API.
+
+    Every request is authenticated with a **session API key** (Bearer token).
+    The key identifies a single connected WhatsApp session. Create a session
+    and get its API key from the [Teiwah dashboard](https://teiwah.cloud/dashboard);
+    the key only becomes active after the session's QR code has been scanned and
+    the session is connected.
+  contact:
+    name: Teiwah
+    url: https://teiwah.cloud
+
+servers:
+  - url: https://api.teiwah.cloud
+    description: Production
+
+security:
+  - sessionApiKey: []
+
+tags:
+  - name: Messages
+    description: Send outbound WhatsApp messages.
+  - name: Media
+    description: Download media received on inbound messages.
+
+paths:
+  /messages:
+    post:
+      tags: [Messages]
+      summary: Send a message
+      description: |
+        Sends an outbound WhatsApp message from the session identified by the
+        API key. The `message` object is discriminated by `message.type`.
+      operationId: sendMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendMessageRequest"
+            examples:
+              text:
+                summary: Text message
+                value:
+                  to: "972501234567"
+                  message:
+                    type: text
+                    body: "Hello from Teiwah"
+              image:
+                summary: Image by URL
+                value:
+                  to: "972501234567"
+                  message:
+                    type: image
+                    mediaUrl: "https://example.com/photo.jpg"
+                    caption: "Look at this"
+              ptt:
+                summary: Voice note (ptt)
+                value:
+                  to: "972501234567"
+                  message:
+                    type: ptt
+                    mediaUrl: "https://example.com/voice.ogg"
+              document:
+                summary: Document by URL
+                value:
+                  to: "972501234567"
+                  message:
+                    type: document
+                    mediaUrl: "https://example.com/invoice.pdf"
+      responses:
+        "200":
+          description: Message accepted for delivery.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SendMessageResponse"
+        "400":
+          description: Validation error (missing `to`, missing `message.type`, or content does not match type).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "401":
+          description: Missing or invalid session API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "413":
+          description: Base64 payload exceeds the 16 MB decoded limit. Use `mediaUrl` instead.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /media/{id}:
+    get:
+      tags: [Media]
+      summary: Download inbound media
+      description: |
+        Downloads media referenced by a `mediaUrl` from an inbound webhook.
+        Authorized with the same session Bearer key; the owning session worker
+        resolves and streams the media on demand.
+      operationId: getMedia
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The media id from the inbound webhook `mediaUrl`.
+          schema:
+            type: string
+            example: k7P3x9LmQ2
+      responses:
+        "200":
+          description: Media bytes.
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "401":
+          description: Missing or invalid session API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Media not found or expired.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+components:
+  securitySchemes:
+    sessionApiKey:
+      type: http
+      scheme: bearer
+      description: |
+        Session API key issued by the Teiwah dashboard. Send it as
+        `Authorization: Bearer <API_KEY>`.
+
+  schemas:
+    SendMessageRequest:
+      type: object
+      required: [to, message]
+      properties:
+        to:
+          type: string
+          description: |
+            Recipient address. Use the bare phone number when available
+            (the same value delivered as `from` on inbound webhooks).
+          example: "972501234567"
+        message:
+          $ref: "#/components/schemas/Message"
+
+    Message:
+      oneOf:
+        - $ref: "#/components/schemas/TextMessage"
+        - $ref: "#/components/schemas/ImageMessage"
+        - $ref: "#/components/schemas/PttMessage"
+        - $ref: "#/components/schemas/AudioMessage"
+        - $ref: "#/components/schemas/VideoMessage"
+        - $ref: "#/components/schemas/DocumentMessage"
+        - $ref: "#/components/schemas/LocationMessage"
+      discriminator:
+        propertyName: type
+        mapping:
+          text: "#/components/schemas/TextMessage"
+          image: "#/components/schemas/ImageMessage"
+          ptt: "#/components/schemas/PttMessage"
+          audio: "#/components/schemas/AudioMessage"
+          video: "#/components/schemas/VideoMessage"
+          document: "#/components/schemas/DocumentMessage"
+          location: "#/components/schemas/LocationMessage"
+
+    TextMessage:
+      type: object
+      title: text
+      required: [type, body]
+      properties:
+        type:
+          type: string
+          const: text
+        body:
+          type: string
+          example: "Hello"
+
+    ImageMessage:
+      type: object
+      title: image
+      description: Send media as `mediaUrl` (preferred) or inline `base64` (<= 16 MB decoded).
+      required: [type]
+      properties:
+        type:
+          type: string
+          const: image
+        mediaUrl:
+          type: string
+          format: uri
+          example: "https://example.com/photo.jpg"
+        base64:
+          type: string
+          description: Base64-encoded file content. Decoded size must be <= 16 MB.
+        caption:
+          type: string
+        mimeType:
+          type: string
+          description: Optional. Usually inferred; only needed if a send fails without it.
+        filename:
+          type: string
+          description: Optional. Mainly relevant for documents.
+
+    PttMessage:
+      type: object
+      title: ptt
+      description: Voice note. Send as `mediaUrl` (preferred) or inline `base64` (<= 16 MB decoded).
+      required: [type]
+      properties:
+        type:
+          type: string
+          const: ptt
+        mediaUrl:
+          type: string
+          format: uri
+          example: "https://example.com/voice.ogg"
+        base64:
+          type: string
+          description: Base64-encoded file content. Decoded size must be <= 16 MB.
+        mimeType:
+          type: string
+          description: Optional. Usually inferred; only needed if a send fails without it.
+
+    AudioMessage:
+      type: object
+      title: audio
+      description: Generic audio file. Send as `mediaUrl` (preferred) or inline `base64` (<= 16 MB decoded).
+      required: [type]
+      properties:
+        type:
+          type: string
+          const: audio
+        mediaUrl:
+          type: string
+          format: uri
+          example: "https://example.com/audio.mp3"
+        base64:
+          type: string
+          description: Base64-encoded file content. Decoded size must be <= 16 MB.
+        mimeType:
+          type: string
+          description: Optional. Usually inferred; only needed if a send fails without it.
+
+    VideoMessage:
+      type: object
+      title: video
+      description: Send as `mediaUrl` (preferred) or inline `base64` (<= 16 MB decoded).
+      required: [type]
+      properties:
+        type:
+          type: string
+          const: video
+        mediaUrl:
+          type: string
+          format: uri
+          example: "https://example.com/clip.mp4"
+        base64:
+          type: string
+          description: Base64-encoded file content. Decoded size must be <= 16 MB.
+        caption:
+          type: string
+        mimeType:
+          type: string
+          description: Optional. Usually inferred; only needed if a send fails without it.
+
+    DocumentMessage:
+      type: object
+      title: document
+      description: Send as `mediaUrl` (preferred) or inline `base64` (<= 16 MB decoded).
+      required: [type]
+      properties:
+        type:
+          type: string
+          const: document
+        mediaUrl:
+          type: string
+          format: uri
+          example: "https://example.com/invoice.pdf"
+        base64:
+          type: string
+          description: Base64-encoded file content. Decoded size must be <= 16 MB.
+        filename:
+          type: string
+          description: Optional. Suggested filename for the document.
+        mimeType:
+          type: string
+          description: Optional. Usually inferred; only needed if a send fails without it.
+
+    LocationMessage:
+      type: object
+      title: location
+      required: [type, latitude, longitude]
+      properties:
+        type:
+          type: string
+          const: location
+        latitude:
+          type: number
+          format: double
+          example: 32.0853
+        longitude:
+          type: number
+          format: double
+          example: 34.7818
+        name:
+          type: string
+        address:
+          type: string
+
+    SendMessageResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Native WhatsApp/Baileys message id.
+          example: "3EB0C767D7A0D9D8F8A1"
+        status:
+          type: string
+          example: "ok"
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          example: "message.type is required"
