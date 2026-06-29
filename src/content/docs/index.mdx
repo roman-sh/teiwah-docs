@@ -28,6 +28,16 @@ flowchart LR
   S --> WA2[WhatsApp reply]
 ```
 
+:::caution[Teiwah is reply-first]
+You can reply to anyone who messages you, and you can send to groups freely. But
+you **cannot cold-message a person who hasn't contacted you first** — WhatsApp
+restricts accounts that start conversations from unofficial clients, so Teiwah
+blocks those sends with a `403`. This is a hard WhatsApp limitation, not a Teiwah
+setting. If you need outbound marketing or notifications to new numbers, use the
+official WhatsApp Business API instead. See
+[Trusted contacts](/guides/send-message/#trusted-contacts).
+:::
+
 <CardGrid stagger>
 	<Card title="Send messages" icon="email">
 		One endpoint, `POST /messages`, for text plus image, voice notes,
