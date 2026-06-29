@@ -30,11 +30,8 @@ curl -X POST https://api.teiwah.cloud/messages \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "to": "972501234567",
-    "message": {
-      "type": "text",
-      "body": "Hello from Teiwah"
-    }
+    "chatId": "972501234567",
+    "text": "Hello from Teiwah"
   }'
 ```
 
@@ -42,10 +39,16 @@ A successful response returns the WhatsApp message id:
 
 ```json
 {
-  "id": "3EB0C767D7A0D9D8F8A1",
-  "status": "ok"
+  "success": true,
+  "id": "3EB0C767D7A0D9D8F8A1"
 }
 ```
+
+:::tip
+You can only **start** a 1:1 conversation with someone who has messaged you
+first. Replying to inbound messages always works — see
+[Trusted contacts](/guides/send-message/#trusted-contacts).
+:::
 
 ## Next steps
 

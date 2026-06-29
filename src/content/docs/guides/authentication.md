@@ -38,4 +38,6 @@ Keep your API key secret. Anyone with the key can send messages from your connec
 | Action | Endpoint | Auth |
 | --- | --- | --- |
 | Send a message | `POST /messages` | Session Bearer key |
+| Show the typing indicator | `POST /typing` | Session Bearer key |
+| Mark a message read | `POST /read` | Session Bearer key |
 | Download inbound media | `GET /media/{id}` | Session Bearer key |

@@ -5,29 +5,38 @@ description: HTTP status codes and limits for the Teiwah API.
 
 ## Error responses
 
-Errors return a JSON body with an `error` message:
+Errors return a JSON body with a numeric `statusCode`, a `message`, and a short
+`error` label. `message` is a string for most errors, or an array of strings for
+validation errors.
 
 ```json
 {
-  "error": "message.type is required"
+  "statusCode": 403,
+  "message": "Cannot start a new conversation with this contact; they must message you first",
+  "error": "Forbidden"
 }
 ```
 
 | Status | Meaning |
 | --- | --- |
-| `400` | Validation error — missing `to`, missing `message.type`, or content does not match the type. |
+| `400` | Validation error — missing `chatId`, neither/both of `text` and `media`, or missing `media.type`. |
 | `401` | Missing or invalid session API key. |
-| `404` | Media not found or expired (`GET /media/{id}`). |
-| `413` | Base64 payload exceeds the 16 MB decoded limit — use `mediaUrl` instead. |
+| `403` | Cold 1:1 reach-out to an untrusted contact (they must message you first). See [Trusted contacts](/guides/send-message/#trusted-contacts). |
+| `404` | Unknown/too-old message id on `POST /read`, or media not found/expired on `GET /media/:id`. |
+| `413` | Base64 payload exceeds the 16 MB decoded limit — use `media.url` instead. |
+| `422` | A `media.url` could not be fetched at send time (bad or unreachable link). |
+| `503` | The session is offline (not currently connected to WhatsApp). |
 
 ## Limits
 
 | Limit | Value |
 | --- | --- |
-| Base64 media (decoded) | 16 MB — larger payloads must use `mediaUrl` |
-| Groups | Out of scope in v1 (1:1 conversations only) |
+| Base64 media (decoded) | 16 MB — larger payloads must use `media.url` |
+| Cold 1:1 reach-out | Blocked until the contact messages you first (replies always work) |
 
 ## Scope notes (v1)
 
-- v1 targets 1:1 automation. Group messaging is not supported yet.
-- Reply threading is not part of v1; use `webhook.from` → `POST /messages.to` to respond.
+- 1:1 and group messaging are both supported.
+- Quoted replies are supported via `quoteMessageId`.
+- Still out of scope: mentions, reactions/edits/deletes, polls, stickers, contact
+  cards, and view-once.

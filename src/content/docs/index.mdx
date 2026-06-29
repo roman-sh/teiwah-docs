@@ -30,12 +30,12 @@ flowchart LR
 
 <CardGrid stagger>
 	<Card title="Send messages" icon="email">
-		One endpoint, `POST /messages`, for text, image, voice notes, audio,
-		video, documents, and location.
+		One endpoint, `POST /messages`, for text plus image, voice notes,
+		audio, video, and documents — addressed by a single `chatId`.
 	</Card>
 	<Card title="Receive webhooks" icon="random">
-		Inbound WhatsApp events are delivered to your webhook URL with an
-		explicit message type for easy routing.
+		Inbound WhatsApp events — 1:1 and group — are delivered to your
+		webhook URL in the same `chatId` + `text`/`media` shape you send.
 	</Card>
 	<Card title="Session API keys" icon="approve-check">
 		Each connected WhatsApp session has its own Bearer key, issued by the

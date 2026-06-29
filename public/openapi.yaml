@@ -10,6 +10,13 @@ info:
     and get its API key from the [Teiwah dashboard](https://teiwah.cloud/dashboard);
     the key only becomes active after the session's QR code has been scanned and
     the session is connected.
+
+    ## Message model
+
+    Every message is addressed with a single `chatId` and is either **text**
+    (a top-level `text` string) or **media** (a `media` object with an explicit
+    `media.type`). Exactly one of `text` / `media` is present. All field names
+    are camelCase.
   contact:
     name: Teiwah
     url: https://teiwah.cloud
@@ -24,6 +31,8 @@ security:
 tags:
   - name: Messages
     description: Send outbound WhatsApp messages.
+  - name: Chat actions
+    description: Typing indicator and read receipts.
   - name: Media
     description: Download media received on inbound messages.
 
@@ -34,7 +43,13 @@ paths:
       summary: Send a message
       description: |
         Sends an outbound WhatsApp message from the session identified by the
-        API key. The `message` object is discriminated by `message.type`.
+        API key. The body carries a `chatId` plus either a top-level `text` or a
+        `media` object. Add `quoteMessageId` to send the message as a reply that
+        quotes an earlier message (best-effort; an unknown id just sends unquoted).
+
+        A cold 1:1 send to a contact who has never messaged you is rejected with
+        **403** (see *Trusted contacts* in the guides). Group sends are never
+        blocked.
       operationId: sendMessage
       requestBody:
         required: true
@@ -46,41 +61,52 @@ paths:
               text:
                 summary: Text message
                 value:
-                  to: "972501234567"
-                  message:
-                    type: text
-                    body: "Hello from Teiwah"
+                  chatId: "972501234567"
+                  text: "Hello from Teiwah"
               image:
                 summary: Image by URL
                 value:
-                  to: "972501234567"
-                  message:
+                  chatId: "972501234567"
+                  media:
                     type: image
-                    mediaUrl: "https://example.com/photo.jpg"
+                    url: "https://example.com/photo.jpg"
                     caption: "Look at this"
               ptt:
                 summary: Voice note (ptt)
                 value:
-                  to: "972501234567"
-                  message:
+                  chatId: "972501234567"
+                  media:
                     type: ptt
-                    mediaUrl: "https://example.com/voice.ogg"
+                    url: "https://example.com/voice.ogg"
               document:
                 summary: Document by URL
                 value:
-                  to: "972501234567"
-                  message:
+                  chatId: "972501234567"
+                  media:
                     type: document
-                    mediaUrl: "https://example.com/invoice.pdf"
+                    url: "https://example.com/invoice.pdf"
+              quotedReply:
+                summary: Quoted reply
+                value:
+                  chatId: "972501234567"
+                  text: "Got it, thanks!"
+                  quoteMessageId: "3EB0C767D7A0D9D8F8A1"
+              base64:
+                summary: Image by base64
+                value:
+                  chatId: "972501234567"
+                  media:
+                    type: image
+                    base64: "<base64-encoded-bytes>"
       responses:
         "200":
-          description: Message accepted for delivery.
+          description: Message sent.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/SendMessageResponse"
         "400":
-          description: Validation error (missing `to`, missing `message.type`, or content does not match type).
+          description: Validation error (missing `chatId`, neither/both of `text` and `media`, or missing `media.type`).
           content:
             application/json:
               schema:
@@ -91,8 +117,113 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+        "403":
+          description: Cold 1:1 reach-out to an untrusted contact (they must message you first).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
         "413":
-          description: Base64 payload exceeds the 16 MB decoded limit. Use `mediaUrl` instead.
+          description: Base64 payload exceeds the 16 MB decoded limit. Use `media.url` instead.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "422":
+          description: A `media.url` could not be fetched at send time.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: The session is offline (not currently connected to WhatsApp).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /typing:
+    post:
+      tags: [Chat actions]
+      summary: Show the typing indicator
+      description: |
+        Shows the "typing…" indicator in a chat — call it right before replying
+        to look responsive. Addressed by `chatId` (conversation-level). There is
+        no "stop": WhatsApp clears it automatically (~25s, or when your next
+        message lands).
+      operationId: setTyping
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [chatId]
+              properties:
+                chatId:
+                  type: string
+                  example: "972501234567"
+      responses:
+        "200":
+          description: Indicator shown.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "401":
+          description: Missing or invalid session API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: The session is offline.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
+  /read:
+    post:
+      tags: [Chat actions]
+      summary: Mark a message read
+      description: |
+        Marks a received message as read (blue ticks), addressed by its native
+        `id` (an inbound webhook `id`). Teiwah resolves the id to the full
+        message key from its recent-message cache, so you send only the id.
+      operationId: markRead
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [messageId]
+              properties:
+                messageId:
+                  type: string
+                  example: "3EB0C767D7A0D9D8F8A1"
+      responses:
+        "200":
+          description: Marked read.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "401":
+          description: Missing or invalid session API key.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          description: Unknown or too-old message id (never seen, or evicted from the cache).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "503":
+          description: The session is offline.
           content:
             application/json:
               schema:
@@ -103,7 +234,7 @@ paths:
       tags: [Media]
       summary: Download inbound media
       description: |
-        Downloads media referenced by a `mediaUrl` from an inbound webhook.
+        Downloads media referenced by a `media.url` from an inbound webhook.
         Authorized with the same session Bearer key; the owning session worker
         resolves and streams the media on demand.
       operationId: getMedia
@@ -111,7 +242,7 @@ paths:
         - name: id
           in: path
           required: true
-          description: The media id from the inbound webhook `mediaUrl`.
+          description: The media id from the inbound webhook `media.url`.
           schema:
             type: string
             example: k7P3x9LmQ2
@@ -136,6 +267,62 @@ paths:
               schema:
                 $ref: "#/components/schemas/Error"
 
+webhooks:
+  inboundMessage:
+    post:
+      tags: [Messages]
+      summary: Inbound message delivery
+      description: |
+        When the connected WhatsApp number receives a message, Teiwah POSTs it to
+        the webhook URL configured for the session in the dashboard. The body
+        mirrors the outbound shape (`chatId` + `text`/`media`) plus delivery
+        metadata. In a group, `chatId` is the group and `participant` is the
+        sender; in a 1:1, `participant` is `null`. Reply by passing `chatId`
+        straight back to `POST /messages`.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InboundMessage"
+            examples:
+              text:
+                summary: Text (1:1)
+                value:
+                  sessionId: "happy-otter-1a2b"
+                  id: "3EB0C767D7A0D9D8F8A1"
+                  chatId: "972501234567@s.whatsapp.net"
+                  participant: null
+                  contact: { name: "Roman S.", phoneNumber: "972501234567" }
+                  timestamp: 1749420000
+                  text: "Hello"
+              group:
+                summary: Text (group)
+                value:
+                  sessionId: "happy-otter-1a2b"
+                  id: "3EB0C767D7A0D9D8F8A1"
+                  chatId: "120363012345678901@g.us"
+                  participant: "972501234567@s.whatsapp.net"
+                  contact: { name: "Roman S.", phoneNumber: "972501234567" }
+                  timestamp: 1749420000
+                  text: "Hello everyone"
+              ptt:
+                summary: Voice note (ptt) — inline base64
+                value:
+                  sessionId: "happy-otter-1a2b"
+                  id: "3EB0C767D7A0D9D8F8A1"
+                  chatId: "972501234567@s.whatsapp.net"
+                  participant: null
+                  contact: { name: "Roman S.", phoneNumber: "972501234567" }
+                  timestamp: 1749420000
+                  media:
+                    type: ptt
+                    url: "https://api.teiwah.cloud/media/k7P3x9LmQ2"
+                    mimeType: "audio/ogg"
+                    base64: "T2dnUwACAAAAAAAAAAA..."
+      responses:
+        "200":
+          description: Return any 2xx to acknowledge receipt.
+
 components:
   securitySchemes:
     sessionApiKey:
@@ -148,59 +335,46 @@ components:
   schemas:
     SendMessageRequest:
       type: object
-      required: [to, message]
+      required: [chatId]
+      description: Exactly one of `text` or `media` must be present.
       properties:
-        to:
+        chatId:
           type: string
           description: |
-            Recipient address. Use the bare phone number when available
-            (the same value delivered as `from` on inbound webhooks).
+            Conversation address. Accepts a bare phone number, a full JID/LID
+            (`…@s.whatsapp.net`, `…@lid`), or a group JID (`…@g.us`). This is the
+            same value delivered as `chatId` on inbound webhooks.
           example: "972501234567"
-        message:
-          $ref: "#/components/schemas/Message"
-
-    Message:
-      oneOf:
-        - $ref: "#/components/schemas/TextMessage"
-        - $ref: "#/components/schemas/ImageMessage"
-        - $ref: "#/components/schemas/PttMessage"
-        - $ref: "#/components/schemas/AudioMessage"
-        - $ref: "#/components/schemas/VideoMessage"
-        - $ref: "#/components/schemas/DocumentMessage"
-        - $ref: "#/components/schemas/LocationMessage"
-      discriminator:
-        propertyName: type
-        mapping:
-          text: "#/components/schemas/TextMessage"
-          image: "#/components/schemas/ImageMessage"
-          ptt: "#/components/schemas/PttMessage"
-          audio: "#/components/schemas/AudioMessage"
-          video: "#/components/schemas/VideoMessage"
-          document: "#/components/schemas/DocumentMessage"
-          location: "#/components/schemas/LocationMessage"
-
-    TextMessage:
-      type: object
-      title: text
-      required: [type, body]
-      properties:
-        type:
+        text:
           type: string
-          const: text
-        body:
-          type: string
+          description: Text body. Present for a text message; omit when sending `media`.
           example: "Hello"
+        media:
+          $ref: "#/components/schemas/OutboundMedia"
+        quoteMessageId:
+          type: string
+          description: |
+            Optional. Native id of a message to quote (an inbound webhook `id`,
+            or an earlier message in this chat) — turns the send into a reply.
+            Best-effort: an unknown/too-old id is not an error; the message is
+            sent unquoted.
+          example: "3EB0C767D7A0D9D8F8A1"
 
-    ImageMessage:
+    OutboundMedia:
       type: object
-      title: image
-      description: Send media as `mediaUrl` (preferred) or inline `base64` (<= 16 MB decoded).
       required: [type]
+      description: |
+        Media to send. Provide the bytes as `url` (preferred) **or** `base64`
+        (<= 16 MB decoded). `mimeType` and `filename` are optional and usually
+        inferred from the URL.
       properties:
         type:
           type: string
-          const: image
-        mediaUrl:
+          enum: [image, ptt, audio, video, document]
+          description: |
+            `ptt` is a WhatsApp voice note; `audio` is a generic audio file —
+            they are kept separate because automations treat them differently.
+        url:
           type: string
           format: uri
           example: "https://example.com/photo.jpg"
@@ -209,133 +383,113 @@ components:
           description: Base64-encoded file content. Decoded size must be <= 16 MB.
         caption:
           type: string
+          description: Optional caption (image / video).
         mimeType:
           type: string
-          description: Optional. Usually inferred; only needed if a send fails without it.
+          description: Optional. Usually inferred; set to override.
         filename:
           type: string
           description: Optional. Mainly relevant for documents.
 
-    PttMessage:
-      type: object
-      title: ptt
-      description: Voice note. Send as `mediaUrl` (preferred) or inline `base64` (<= 16 MB decoded).
-      required: [type]
-      properties:
-        type:
-          type: string
-          const: ptt
-        mediaUrl:
-          type: string
-          format: uri
-          example: "https://example.com/voice.ogg"
-        base64:
-          type: string
-          description: Base64-encoded file content. Decoded size must be <= 16 MB.
-        mimeType:
-          type: string
-          description: Optional. Usually inferred; only needed if a send fails without it.
-
-    AudioMessage:
-      type: object
-      title: audio
-      description: Generic audio file. Send as `mediaUrl` (preferred) or inline `base64` (<= 16 MB decoded).
-      required: [type]
-      properties:
-        type:
-          type: string
-          const: audio
-        mediaUrl:
-          type: string
-          format: uri
-          example: "https://example.com/audio.mp3"
-        base64:
-          type: string
-          description: Base64-encoded file content. Decoded size must be <= 16 MB.
-        mimeType:
-          type: string
-          description: Optional. Usually inferred; only needed if a send fails without it.
-
-    VideoMessage:
-      type: object
-      title: video
-      description: Send as `mediaUrl` (preferred) or inline `base64` (<= 16 MB decoded).
-      required: [type]
-      properties:
-        type:
-          type: string
-          const: video
-        mediaUrl:
-          type: string
-          format: uri
-          example: "https://example.com/clip.mp4"
-        base64:
-          type: string
-          description: Base64-encoded file content. Decoded size must be <= 16 MB.
-        caption:
-          type: string
-        mimeType:
-          type: string
-          description: Optional. Usually inferred; only needed if a send fails without it.
-
-    DocumentMessage:
-      type: object
-      title: document
-      description: Send as `mediaUrl` (preferred) or inline `base64` (<= 16 MB decoded).
-      required: [type]
-      properties:
-        type:
-          type: string
-          const: document
-        mediaUrl:
-          type: string
-          format: uri
-          example: "https://example.com/invoice.pdf"
-        base64:
-          type: string
-          description: Base64-encoded file content. Decoded size must be <= 16 MB.
-        filename:
-          type: string
-          description: Optional. Suggested filename for the document.
-        mimeType:
-          type: string
-          description: Optional. Usually inferred; only needed if a send fails without it.
-
-    LocationMessage:
-      type: object
-      title: location
-      required: [type, latitude, longitude]
-      properties:
-        type:
-          type: string
-          const: location
-        latitude:
-          type: number
-          format: double
-          example: 32.0853
-        longitude:
-          type: number
-          format: double
-          example: 34.7818
-        name:
-          type: string
-        address:
-          type: string
-
     SendMessageResponse:
       type: object
       properties:
+        success:
+          type: boolean
+          example: true
         id:
           type: string
-          description: Native WhatsApp/Baileys message id.
+          description: Native WhatsApp/Baileys message id; pass it back as `quoteMessageId` to reply-quote.
           example: "3EB0C767D7A0D9D8F8A1"
-        status:
+
+    SuccessResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+          example: true
+
+    InboundMessage:
+      type: object
+      description: Inbound webhook payload. Carries either `text` or `media`.
+      properties:
+        sessionId:
           type: string
-          example: "ok"
+          description: Identifies the WhatsApp session; lets one shared endpoint fan in multiple sessions.
+          example: "happy-otter-1a2b"
+        id:
+          type: string
+          description: Native WhatsApp/Baileys message id. Use for dedup, as the `/read` messageId, the `/media/:id` key, or `quoteMessageId`.
+          example: "3EB0C767D7A0D9D8F8A1"
+        chatId:
+          type: string
+          description: Conversation reply address. The group JID for a group, the contact for a 1:1. Pass back as `chatId` to reply.
+          example: "972501234567@s.whatsapp.net"
+        participant:
+          type: [string, "null"]
+          description: In a group, the sender's own address (usable as a `chatId` to DM them). `null` in a 1:1.
+          example: null
+        contact:
+          type: object
+          description: Sender identity metadata only — never a send target.
+          properties:
+            name:
+              type: [string, "null"]
+              description: WhatsApp display name (best-effort).
+              example: "Roman S."
+            phoneNumber:
+              type: [string, "null"]
+              description: Bare digits, or `null` when WhatsApp provides no phone-number mapping.
+              example: "972501234567"
+        timestamp:
+          type: integer
+          description: Unix timestamp (seconds).
+          example: 1749420000
+        text:
+          type: string
+          description: Present on a text message.
+        media:
+          $ref: "#/components/schemas/InboundMedia"
+
+    InboundMedia:
+      type: object
+      description: |
+        Present on a media message. Always carries a Teiwah `url` (download via
+        `GET /media/:id`). `ptt` additionally includes inline `base64`; all other
+        types are URL-only.
+      properties:
+        type:
+          type: string
+          enum: [image, ptt, audio, video, document]
+        url:
+          type: string
+          format: uri
+          example: "https://api.teiwah.cloud/media/k7P3x9LmQ2"
+        mimeType:
+          type: string
+          example: "image/jpeg"
+        caption:
+          type: string
+        base64:
+          type: string
+          description: Present only for `ptt` (voice notes are inlined).
 
     Error:
       type: object
+      description: |
+        Error responses follow the standard shape below. `message` may be a
+        string or an array of strings (validation).
       properties:
+        statusCode:
+          type: integer
+          example: 403
+        message:
+          oneOf:
+            - type: string
+            - type: array
+              items:
+                type: string
+          example: "Cannot start a new conversation with this contact; they must message you first"
         error:
           type: string
-          example: "message.type is required"
+          example: "Forbidden"
