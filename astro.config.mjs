@@ -13,6 +13,17 @@ export default defineConfig({
 			title: 'Teiwah Docs',
 			description:
 				'WhatsApp automation API. Send messages, receive webhooks, and handle media through a simple session-based API.',
+			favicon: '/favicon/browser.png',
+			head: [
+				{
+					tag: 'link',
+					attrs: {
+						rel: 'apple-touch-icon',
+						href: '/favicon/favicon.png',
+						sizes: '180x180',
+					},
+				},
+			],
 			logo: {
 				light: './src/assets/logo-light.svg',
 				dark: './src/assets/logo-dark.svg',
